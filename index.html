@@ -62,9 +62,9 @@
       gravity: 0.4
     };
 
-    // Hoop object with rim and net
+    // Hoop object with rim and net, centered horizontally
     const hoop = {
-      x: 250,
+      x: canvas.width / 2 - 50,  // center horizontally (width 100)
       y: 100,
       width: 100,
       height: 12,
@@ -214,6 +214,38 @@
       }
     }
 
+    // Reusable shoot function (targetX, targetY, optional power)
+    function shootBall(targetX, targetY, powerOverride) {
+      if (!ball.isMoving) {
+        const angle = Math.atan2(ball.y - targetY, targetX - ball.x);
+        const dist = Math.min(Math.hypot(targetX - ball.x, targetY - ball.y), 150);
+        const power = powerOverride !== undefined ? powerOverride : dist / 15;
+
+        ball.dx = Math.cos(angle) * power;
+        ball.dy = -Math.sin(angle) * power;
+        ball.isMoving = true;
+      }
+    }
+
+    // Handle click to shoot ball
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      shootBall(clickX, clickY);
+    });
+
+    // Keyboard listener for 'X' key to shoot towards hoop center with fixed power
+    window.addEventListener("keydown", (e) => {
+      if (e.key.toLowerCase() === 'x') {
+        // Shoot ball towards hoop center with fixed power 10
+        shootBall(hoop.x + hoop.width / 2, hoop.y + hoop.height / 2, 10);
+      }
+    });
+
+    resetBall();
+    gameLoop();
+
     // Main game loop
     function gameLoop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -223,28 +255,6 @@
       updateBall();
       requestAnimationFrame(gameLoop);
     }
-
-    // Handle click to shoot ball
-    canvas.addEventListener("click", (e) => {
-      if (!ball.isMoving) {
-        const rect = canvas.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
-
-        // Calculate shooting angle & power based on click position
-        const angle = Math.atan2(ball.y - clickY, clickX - ball.x);
-        const dist = Math.min(Math.hypot(clickX - ball.x, clickY - ball.y), 150);
-        const power = dist / 15;
-
-        ball.dx = Math.cos(angle) * power;
-        ball.dy = -Math.sin(angle) * power;
-        ball.isMoving = true;
-      }
-    });
-
-    resetBall();
-    gameLoop();
-
   </script>
 </body>
 </html>
