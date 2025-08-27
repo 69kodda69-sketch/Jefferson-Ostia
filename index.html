@@ -2,20 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Game</title>
+  <title>Realistic Basketball Game</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-      background: #87CEEB;
+      background: linear-gradient(to top, #3a5f0b, #87ceeb); /* grass to sky */
       font-family: Arial, sans-serif;
       text-align: center;
+      user-select: none;
     }
 
     canvas {
       display: block;
-      margin: 0 auto;
-      background: #f4f4f4;
+      margin: 20px auto;
+      background: #d18b47; /* wooden court */
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.4);
     }
 
     #scoreBoard {
@@ -23,11 +26,13 @@
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: white;
+      background: rgba(255,255,255,0.9);
       padding: 10px 20px;
       border-radius: 10px;
-      font-size: 20px;
+      font-size: 22px;
+      font-weight: bold;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      user-select: none;
     }
   </style>
 </head>
@@ -39,11 +44,11 @@
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-
-    let score = 0;
     const scoreEl = document.getElementById("score");
 
-    // Basketball
+    let score = 0;
+
+    // Basketball ball object
     const ball = {
       x: 300,
       y: 350,
@@ -51,58 +56,147 @@
       color: "orange",
       dx: 0,
       dy: 0,
-      isMoving: false
+      isMoving: false,
+      bounceFactor: 0.7,
+      friction: 0.99,
+      gravity: 0.4
     };
 
-    // Hoop
+    // Hoop object with rim and net
     const hoop = {
       x: 250,
       y: 100,
       width: 100,
-      height: 10
+      height: 12,
+      rimRadius: 45,
     };
 
-    // Draw hoop
+    // Draw hoop with rim and net
     function drawHoop() {
-      ctx.fillStyle = "red";
-      ctx.fillRect(hoop.x, hoop.y, hoop.width, hoop.height);
+      // Backboard
+      ctx.fillStyle = "#663300";
+      ctx.fillRect(hoop.x + hoop.width + 10, hoop.y - 40, 15, 90);
+
+      // Rim (orange)
+      ctx.strokeStyle = "#FF4500";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(hoop.x + hoop.width / 2, hoop.y + hoop.height / 2, hoop.rimRadius, 0, Math.PI, true);
+      ctx.stroke();
+
+      // Net (white lines)
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      const rimX = hoop.x + hoop.width / 2;
+      const rimY = hoop.y + hoop.height / 2 + hoop.rimRadius;
+
+      for(let i = -hoop.rimRadius; i <= hoop.rimRadius; i += 10) {
+        ctx.beginPath();
+        ctx.moveTo(rimX + i, hoop.y + hoop.height / 2);
+        ctx.lineTo(rimX + i / 2, rimY + 40);
+        ctx.stroke();
+      }
+      for(let i = -hoop.rimRadius; i <= hoop.rimRadius; i += 10) {
+        ctx.beginPath();
+        ctx.moveTo(rimX + i, hoop.y + hoop.height / 2);
+        ctx.lineTo(rimX + (i / 2) + 15, rimY + 40);
+        ctx.stroke();
+      }
     }
 
-    // Draw ball
+    // Draw ball with basketball lines
     function drawBall() {
       ctx.beginPath();
       ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
       ctx.fillStyle = ball.color;
       ctx.fill();
-      ctx.closePath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#b35400";
+      ctx.stroke();
+
+      // Basketball lines
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#b35400";
+
+      // Vertical line
+      ctx.beginPath();
+      ctx.moveTo(ball.x, ball.y - ball.radius);
+      ctx.lineTo(ball.x, ball.y + ball.radius);
+      ctx.stroke();
+
+      // Horizontal line
+      ctx.beginPath();
+      ctx.moveTo(ball.x - ball.radius, ball.y);
+      ctx.lineTo(ball.x + ball.radius, ball.y);
+      ctx.stroke();
+
+      // Diagonal lines
+      ctx.beginPath();
+      ctx.moveTo(ball.x - ball.radius * 0.7, ball.y - ball.radius * 0.7);
+      ctx.lineTo(ball.x + ball.radius * 0.7, ball.y + ball.radius * 0.7);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(ball.x + ball.radius * 0.7, ball.y - ball.radius * 0.7);
+      ctx.lineTo(ball.x - ball.radius * 0.7, ball.y + ball.radius * 0.7);
+      ctx.stroke();
     }
 
-    // Update ball position
+    // Update ball physics
     function updateBall() {
       if (ball.isMoving) {
         ball.x += ball.dx;
         ball.y += ball.dy;
-        ball.dy += 0.3; // gravity
+        ball.dy += ball.gravity;
 
-        // Check if ball enters hoop
+        // Bounce floor
+        if (ball.y + ball.radius > canvas.height) {
+          ball.y = canvas.height - ball.radius;
+          ball.dy *= -ball.bounceFactor;
+          ball.dx *= ball.friction;
+
+          // Stop if bounce is very small
+          if (Math.abs(ball.dy) < 1) {
+            resetBall();
+          }
+        }
+
+        // Bounce walls
+        if (ball.x - ball.radius < 0) {
+          ball.x = ball.radius;
+          ball.dx *= -ball.bounceFactor;
+        }
+        if (ball.x + ball.radius > canvas.width) {
+          ball.x = canvas.width - ball.radius;
+          ball.dx *= -ball.bounceFactor;
+        }
+
+        // Check if ball passes through the rim (simple scoring)
+        const rimCenterX = hoop.x + hoop.width / 2;
+        const rimCenterY = hoop.y + hoop.height / 2;
+
+        const distX = ball.x - rimCenterX;
+        const distY = ball.y - rimCenterY;
+
         if (
-          ball.y - ball.radius < hoop.y + hoop.height &&
-          ball.y + ball.radius > hoop.y &&
-          ball.x > hoop.x &&
-          ball.x < hoop.x + hoop.width
+          distY > 0 &&
+          distY < ball.radius + 5 &&
+          Math.abs(distX) < hoop.rimRadius - 5 &&
+          ball.dy > 0
         ) {
           score++;
           scoreEl.textContent = score;
           resetBall();
         }
 
-        // If ball goes off screen
-        if (ball.y > canvas.height || ball.x < 0 || ball.x > canvas.width) {
+        // If ball goes off-screen below or sides, reset
+        if (ball.y - ball.radius > canvas.height + 50) {
           resetBall();
         }
       }
     }
 
+    // Reset ball to starting position
     function resetBall() {
       ball.x = 300;
       ball.y = 350;
@@ -111,22 +205,36 @@
       ball.isMoving = false;
     }
 
+    // Draw wooden court floor texture (simple stripes)
+    function drawCourtFloor() {
+      const stripeHeight = 10;
+      for (let y = 0; y < canvas.height; y += stripeHeight * 2) {
+        ctx.fillStyle = y % (stripeHeight * 4) === 0 ? '#c58439' : '#d18b47';
+        ctx.fillRect(0, y, canvas.width, stripeHeight);
+      }
+    }
+
+    // Main game loop
     function gameLoop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawCourtFloor();
       drawHoop();
       drawBall();
       updateBall();
       requestAnimationFrame(gameLoop);
     }
 
+    // Handle click to shoot ball
     canvas.addEventListener("click", (e) => {
       if (!ball.isMoving) {
         const rect = canvas.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
 
+        // Calculate shooting angle & power based on click position
         const angle = Math.atan2(ball.y - clickY, clickX - ball.x);
-        const power = 10;
+        const dist = Math.min(Math.hypot(clickX - ball.x, clickY - ball.y), 150);
+        const power = dist / 15;
 
         ball.dx = Math.cos(angle) * power;
         ball.dy = -Math.sin(angle) * power;
@@ -134,7 +242,9 @@
       }
     });
 
+    resetBall();
     gameLoop();
+
   </script>
 </body>
 </html>
